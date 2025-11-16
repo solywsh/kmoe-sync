@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="zh-CN" class="bg-[#f6f8fb]">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kmoe Sync 设置</title>
+    <link rel="stylesheet" href="styles/tailwind.css" />
+  </head>
+  <body class="min-h-screen bg-gradient-to-br from-[#f8f8f8] via-[#f0f0f0] to-[#ffffff] text-slate-900">
+    <div class="mx-auto flex max-w-6xl items-start gap-8 px-4 py-10 lg:px-6">
+      <aside class="w-64 space-y-4">
+        <div class="rounded-3xl border border-white/60 bg-white/80 p-6 shadow-soft">
+          <p class="text-xs uppercase tracking-[0.5em] text-slate-400">Kmoe Sync</p>
+          <h1 class="mt-2 text-2xl font-semibold text-slate-900">控制面板</h1>
+          <p class="mt-3 text-sm text-slate-500">管理下载历史、WebDAV 服务器与文件规则。</p>
+        </div>
+        <nav class="space-y-2" id="navList">
+          <button class="nav-pill" data-nav="history">
+            <span>下载历史</span>
+            <small>查看时间线与状态</small>
+          </button>
+          <button class="nav-pill" data-nav="servers">
+            <span>WebDAV 服务器</span>
+            <small>账号信息与目录</small>
+          </button>
+          <button class="nav-pill" data-nav="rules">
+            <span>下载规则</span>
+            <small>定义文件夹结构</small>
+          </button>
+        </nav>
+      </aside>
+
+      <main class="flex-1 space-y-8">
+        <div id="feedback" hidden class="rounded-2xl border px-4 py-3 text-sm"></div>
+
+        <section data-section="history" class="panel">
+          <header class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p class="text-xs uppercase tracking-[0.4em] text-slate-400">Timeline</p>
+              <h2 class="text-2xl font-semibold whitespace-nowrap">下载历史</h2>
+            </div>
+            <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+              <div class="relative w-full sm:w-64">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m20 20-4-4" />
+                </svg>
+                <input id="historySearch" type="search" class="input w-full pl-9" placeholder="搜索书名或文件名" autocomplete="off" />
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button id="deleteHistory" class="btn-secondary border border-red-200 text-red-500 hover:bg-red-50" disabled>删除所选</button>
+                <button id="refreshHistory" class="btn-secondary">刷新</button>
+              </div>
+            </div>
+          </header>
+          <div id="historyList" class="mt-6 space-y-4"></div>
+        </section>
+
+        <section data-section="servers" class="panel hidden" hidden>
+          <header class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p class="text-xs uppercase tracking-[0.4em] text-slate-400">Connections</p>
+              <h2 class="text-2xl font-semibold">WebDAV 服务器</h2>
+            </div>
+            <button id="addServerBtn" class="btn-primary">+ 新建服务器</button>
+          </header>
+          <div class="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.8fr)_minmax(300px,1fr)]">
+            <div id="serverList" class="space-y-6"></div>
+            <aside class="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-soft lg:sticky lg:top-8">
+              <div class="mb-4 space-y-1">
+                <p class="text-lg font-semibold">WebDAV 文件浏览器</p>
+                <p class="text-sm text-slate-500">浏览远程目录并填入到表单中。</p>
+              </div>
+              <div class="space-y-3">
+                <label class="text-xs text-slate-500">选择服务器</label>
+                <div class="dropdown" data-dropdown="explorer-server">
+                  <button type="button" class="dropdown-toggle" data-dropdown-toggle>
+                    <span data-dropdown-label>选择服务器</span>
+                    <svg viewBox="0 0 20 20" fill="none" class="h-4 w-4 text-slate-500" aria-hidden="true">
+                      <path d="M6 8l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                  </button>
+                  <div class="dropdown-panel hidden" data-dropdown-panel></div>
+                </div>
+                <input type="hidden" id="explorerServer" />
+
+                <label class="text-xs text-slate-500">浏览路径</label>
+                <div class="flex gap-2">
+                  <input id="explorerPath" class="input flex-1" placeholder="/" />
+                  <button type="button" id="explorerGo" class="btn-secondary">打开</button>
+                </div>
+
+                <p id="browserTargetLabel" class="text-xs text-slate-500">点击服务器卡片中的“浏览”按钮后，此处会锁定对应输入框。</p>
+                <div id="explorerList" class="mt-2 h-80 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80"></div>
+                <button type="button" id="explorerApply" class="btn-primary w-full" disabled>将路径填入字段</button>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section data-section="rules" class="panel hidden" hidden>
+          <header class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p class="text-xs uppercase tracking-[0.4em] text-slate-400">Automation</p>
+              <h2 class="text-2xl font-semibold">下载规则</h2>
+            </div>
+          </header>
+          <div class="mt-6 space-y-5">
+            <div>
+              <label class="text-sm font-semibold text-slate-600">文件夹/文件模板</label>
+              <input id="ruleTemplate" class="input mt-2" placeholder="例如：{title}/{filename}" />
+              <p class="mt-2 text-sm text-slate-500">使用变量组合路径，可自动放入子目录。</p>
+            </div>
+            <div class="rounded-2xl border border-slate-100 bg-white/70 p-4 text-sm text-slate-600">
+              <p class="font-semibold">可用变量</p>
+              <ul class="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-500">
+                <li><code>{title}</code> 漫画标题</li>
+                <li><code>{filename}</code> 原始文件名（无扩展名）</li>
+                <li><code>{ext}</code> 扩展名，若模板中未使用，将自动拼接</li>
+                <li><code>{year}</code> / <code>{month}</code> / <code>{day}</code> / <code>{hour}</code> / <code>{min}</code> 基于下载时间</li>
+              </ul>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-100 p-4 text-sm text-slate-700" id="rulePreview">预览路径：--</div>
+            <div class="flex flex-wrap gap-3">
+              <button id="resetRule" class="btn-secondary">恢复默认</button>
+              <button id="saveRule" class="btn-primary">保存规则</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <template id="pathRowTemplate">
+      <div class="rounded-2xl border border-slate-100 bg-white/70 p-4 text-sm" data-path-row>
+        <div class="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+          <input type="text" class="input flex-1" placeholder="显示名称" data-path-label />
+          <button type="button" class="btn-secondary text-slate-700" data-remove-path>删除</button>
+        </div>
+        <div class="mt-2 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+          <input type="text" class="input flex-1 font-mono text-xs" placeholder="/library/manga" data-path-value />
+          <button type="button" class="btn-secondary" data-open-browser>浏览</button>
+        </div>
+      </div>
+    </template>
+
+    <script type="module" src="scripts/options.js"></script>
+  </body>
+</html>

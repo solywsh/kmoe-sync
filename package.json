@@ -1,0 +1,16 @@
+{
+  "name": "kmoe-sync",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build:css": "tailwindcss -c tailwind.config.js -i ./src/styles/tailwind.input.css -o ./styles/tailwind.css --minify",
+    "watch:css": "tailwindcss -c tailwind.config.js -i ./src/styles/tailwind.input.css -o ./styles/tailwind.css --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "tailwindcss": "^3.4.14"
+  }
+}

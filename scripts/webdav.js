@@ -1,0 +1,171 @@
+import { normalizePath } from "./storage.js";
+
+const PROPFIND_BODY =
+  `<?xml version="1.0" encoding="UTF-8"?>` +
+  '<d:propfind xmlns:d="DAV:"><d:prop><d:displayname/><d:getcontentlength/><d:getlastmodified/><d:resourcetype/></d:prop></d:propfind>';
+
+function toBasicAuth(user, pass) {
+  const raw = `${user || ""}:${pass || ""}`;
+  const encoded = btoa(unescape(encodeURIComponent(raw)));
+  return `Basic ${encoded}`;
+}
+
+function encodePathname(rawPath = "/") {
+  if (!rawPath || rawPath === "/") return "/";
+  const trailing = rawPath.endsWith("/");
+  const chunks = rawPath
+    .split("/")
+    .filter(Boolean)
+    .map((part) => encodeURIComponent(part));
+  return `/${chunks.join("/")}${trailing ? "/" : ""}`;
+}
+
+function buildUrl(server, rawPath = "/") {
+  if (!server?.baseUrl) throw new Error("尚未設定伺服器地址");
+  const base = server.baseUrl.replace(/\/$/, "");
+  const path = encodePathname(rawPath);
+  return `${base}${path}`;
+}
+
+export async function webDavFetch(server, rawPath = "/", options = {}) {
+  const url = buildUrl(server, rawPath || "/");
+  const headers = new Headers(options.headers || {});
+  headers.set("Accept", headers.get("Accept") || "*/*");
+  if (server.username || server.password) {
+    headers.set("Authorization", toBasicAuth(server.username, server.password));
+  }
+
+  const response = await fetch(url, {
+    method: options.method || "GET",
+    headers,
+    body: options.body,
+    credentials: "omit",
+    cache: "no-store",
+    redirect: "follow"
+  });
+
+  return response;
+}
+
+function getElements(root, localName) {
+  if (typeof root.getElementsByTagNameNS === "function") {
+    const list = Array.from(root.getElementsByTagNameNS("*", localName));
+    if (list.length) return list;
+  }
+  return Array.from(root.getElementsByTagName(localName));
+}
+
+function parseMultiStatus(xmlText, currentPath) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlText, "application/xml");
+  let nodes = getElements(doc, "response");
+  const entries = nodes
+    .map((node) => {
+      const hrefNode = getElements(node, "href")[0];
+      const href = hrefNode?.textContent || "";
+      const absolute = new URL(href, "http://placeholder");
+      const pathname = decodeURIComponent(absolute.pathname);
+      const displayNameNode = getElements(node, "displayname")[0];
+      const sizeNode = getElements(node, "getcontentlength")[0];
+      const modifiedNode = getElements(node, "getlastmodified")[0];
+      const typeNode = getElements(node, "resourcetype")[0];
+      const isCollection = !!getElements(typeNode || document.createElement("div"), "collection")[0];
+      return {
+        href: pathname,
+        name: displayNameNode?.textContent || pathname.split("/").filter(Boolean).pop() || "/",
+        isCollection,
+        size: sizeNode ? parseInt(sizeNode.textContent, 10) || 0 : 0,
+        lastModified: modifiedNode?.textContent || null
+      };
+    });
+
+  if (entries.length && normalizePath(entries[0].href) === normalizePath(currentPath)) {
+    entries.shift();
+  }
+
+  return entries;
+}
+
+export async function listDirectory(server, path = "/") {
+  const normalized = normalizePath(path);
+  const target = normalized === "/" ? "/" : `${normalized}/`;
+  const response = await webDavFetch(server, target, {
+    method: "PROPFIND",
+    headers: {
+      Depth: "1",
+      "Content-Type": "application/xml; charset=utf-8"
+    },
+    body: PROPFIND_BODY
+  });
+
+  if (response.status === 401 || response.status === 403) {
+    throw new Error("驗證失敗，請檢查帳號密碼");
+  }
+
+  if (response.status >= 400) {
+    throw new Error(`WebDAV 伺服器回傳 ${response.status}`);
+  }
+
+  const xml = await response.text();
+  return parseMultiStatus(xml, target);
+}
+
+export async function testConnection(server) {
+  const response = await webDavFetch(server, server.defaultPath || "/", {
+    method: "PROPFIND",
+    headers: {
+      Depth: "0",
+      "Content-Type": "application/xml; charset=utf-8"
+    },
+    body: PROPFIND_BODY
+  });
+
+  if (response.status === 401 || response.status === 403) {
+    throw new Error("驗證失敗");
+  }
+
+  if (response.status >= 400 && response.status !== 207) {
+    throw new Error(`WebDAV 伺服器回傳 ${response.status}`);
+  }
+
+  return true;
+}
+
+export async function ensureDirectory(server, dirPath) {
+  const normalized = normalizePath(dirPath);
+  if (normalized === "/") return;
+  const segments = normalized.split("/").filter(Boolean);
+  let current = "";
+
+  for (const segment of segments) {
+    current += `/${segment}`;
+    const probe = await webDavFetch(server, `${current}/`, {
+      method: "PROPFIND",
+      headers: { Depth: "0" },
+      body: PROPFIND_BODY
+    });
+
+    if (probe.status === 404) {
+      const mk = await webDavFetch(server, `${current}/`, { method: "MKCOL" });
+      if (!mk.ok && mk.status !== 405) {
+        throw new Error(`建立 ${current} 失敗 (${mk.status})`);
+      }
+    } else if (probe.status >= 400 && probe.status !== 207) {
+      throw new Error(`無法讀取 ${current} (${probe.status})`);
+    }
+  }
+}
+
+export async function uploadFile(server, remotePath, data, contentType = "application/octet-stream") {
+  const response = await webDavFetch(server, remotePath, {
+    method: "PUT",
+    headers: { "Content-Type": contentType },
+    body: data
+  });
+
+  if (!response.ok) {
+    throw new Error(`上傳失敗 (${response.status})`);
+  }
+
+  return true;
+}

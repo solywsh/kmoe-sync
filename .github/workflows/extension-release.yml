@@ -1,0 +1,53 @@
+name: Build and Release Extension
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      NODE_VERSION: 18
+      PACKAGE_NAME: kmoe-sync-${{ github.ref_name }}.zip
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build styles
+        run: npm run build:css
+
+      - name: Package extension
+        run: |
+          mkdir -p dist
+          zip -r "dist/${PACKAGE_NAME}" \
+            icons \
+            manifest.json \
+            options.html \
+            scripts \
+            styles \
+            README.md \
+            docs
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kmoe-sync-extension
+          path: dist/${{ env.PACKAGE_NAME }}
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/${{ env.PACKAGE_NAME }}
