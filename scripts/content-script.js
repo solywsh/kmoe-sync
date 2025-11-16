@@ -40,7 +40,8 @@
     { id: "kxo", label: "线路 B · kxo.moe", origin: "https://kxo.moe", vip: 2 },
     { id: "mox", label: "线路 C · mox.moe", origin: "https://mox.moe", vip: 3 },
     { id: "koz", label: "线路 D · koz.moe", origin: "https://koz.moe", vip: 4 },
-    { id: "kox", label: "线路 E · kox.moe", origin: "https://kox.moe", vip: 5 }
+    { id: "kox", label: "线路 E · kox.moe", origin: "https://kox.moe", vip: 5 },
+    { id: "kox", label: "线路 E · kzz.moe", origin: "https://kzz.moe", vip: 6 }
   ];
   const FORMAT_OPTIONS = [
     { id: "epub", label: "EPUB 格式", value: 2 },

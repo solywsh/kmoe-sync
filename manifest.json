@@ -28,11 +28,13 @@
     "https://mox.moe/*",
     "https://koz.moe/*",
     "https://kox.moe/*",
+    "https://kzz.moe/*",
     "http://kxx.moe/*",
     "http://kxo.moe/*",
     "http://mox.moe/*",
     "http://koz.moe/*",
     "http://kox.moe/*",
+    "http://kzz.moe/*",
     "http://*/*",
     "https://*/*"
   ],
@@ -44,11 +46,13 @@
         "https://mox.moe/*",
         "https://koz.moe/*",
         "https://kox.moe/*",
+        "https://kzz.moe/*",
         "http://kxx.moe/*",
         "http://kxo.moe/*",
         "http://mox.moe/*",
         "http://koz.moe/*",
-        "http://kox.moe/*"
+        "http://kox.moe/*",
+        "http://kzz.moe/*"
       ],
       "js": ["scripts/content-script.js"],
       "run_at": "document_idle"
