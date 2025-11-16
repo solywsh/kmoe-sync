@@ -21,7 +21,7 @@ function encodePathname(rawPath = "/") {
 }
 
 function buildUrl(server, rawPath = "/") {
-  if (!server?.baseUrl) throw new Error("尚未設定伺服器地址");
+  if (!server?.baseUrl) throw new Error("尚未设置服务器地址");
   const base = server.baseUrl.replace(/\/$/, "");
   const path = encodePathname(rawPath);
   return `${base}${path}`;
@@ -99,11 +99,11 @@ export async function listDirectory(server, path = "/") {
   });
 
   if (response.status === 401 || response.status === 403) {
-    throw new Error("驗證失敗，請檢查帳號密碼");
+    throw new Error("验证失败，请检查账号密码");
   }
 
   if (response.status >= 400) {
-    throw new Error(`WebDAV 伺服器回傳 ${response.status}`);
+    throw new Error(`WebDAV 服务器返回 ${response.status}`);
   }
 
   const xml = await response.text();
@@ -121,11 +121,11 @@ export async function testConnection(server) {
   });
 
   if (response.status === 401 || response.status === 403) {
-    throw new Error("驗證失敗");
+    throw new Error("验证失败");
   }
 
   if (response.status >= 400 && response.status !== 207) {
-    throw new Error(`WebDAV 伺服器回傳 ${response.status}`);
+    throw new Error(`WebDAV 服务器返回 ${response.status}`);
   }
 
   return true;
@@ -148,10 +148,10 @@ export async function ensureDirectory(server, dirPath) {
     if (probe.status === 404) {
       const mk = await webDavFetch(server, `${current}/`, { method: "MKCOL" });
       if (!mk.ok && mk.status !== 405) {
-        throw new Error(`建立 ${current} 失敗 (${mk.status})`);
+        throw new Error(`创建 ${current} 失败 (${mk.status})`);
       }
     } else if (probe.status >= 400 && probe.status !== 207) {
-      throw new Error(`無法讀取 ${current} (${probe.status})`);
+      throw new Error(`无法读取 ${current} (${probe.status})`);
     }
   }
 }
@@ -164,7 +164,7 @@ export async function uploadFile(server, remotePath, data, contentType = "applic
   });
 
   if (!response.ok) {
-    throw new Error(`上傳失敗 (${response.status})`);
+    throw new Error(`上传失败 (${response.status})`);
   }
 
   return true;
