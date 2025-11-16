@@ -20,6 +20,56 @@ function encodePathname(rawPath = "/") {
   return `/${chunks.join("/")}${trailing ? "/" : ""}`;
 }
 
+function getServerBasePath(server) {
+  if (!server?.baseUrl) return "/";
+  const candidate = server.baseUrl;
+  const attempt = (value) => {
+    const url = new URL(value);
+    return normalizePath(url.pathname || "/");
+  };
+  try {
+    return attempt(candidate);
+  } catch (error) {
+    try {
+      if (!/^https?:\/\//i.test(candidate)) {
+        return attempt(`http://${candidate}`);
+      }
+    } catch (innerError) {
+      /* noop */
+    }
+    return "/";
+  }
+}
+
+function applyServerBasePath(server, relativePath = "/") {
+  const basePath = getServerBasePath(server);
+  const normalizedRelative = normalizePath(relativePath || "/");
+  if (normalizedRelative === "/") {
+    return basePath || "/";
+  }
+  if (!basePath || basePath === "/") {
+    return normalizedRelative;
+  }
+  return normalizePath(`${basePath}${normalizedRelative}`);
+}
+
+export function relativeToServerRoot(server, rawPath = "/") {
+  const basePath = getServerBasePath(server);
+  const normalized = normalizePath(rawPath || "/");
+  if (!basePath || basePath === "/") {
+    return normalized;
+  }
+  if (normalized === basePath) {
+    return "/";
+  }
+  if (normalized.startsWith(`${basePath}/`)) {
+    const sliced = normalized.slice(basePath.length);
+    if (!sliced) return "/";
+    return sliced.startsWith("/") ? sliced : `/${sliced}`;
+  }
+  return normalized;
+}
+
 function buildUrl(server, rawPath = "/") {
   if (!server?.baseUrl) throw new Error("尚未设置服务器地址");
   const base = server.baseUrl.replace(/\/$/, "");
@@ -107,7 +157,12 @@ export async function listDirectory(server, path = "/") {
   }
 
   const xml = await response.text();
-  return parseMultiStatus(xml, target);
+  const comparePath = applyServerBasePath(server, normalized);
+  const entries = parseMultiStatus(xml, comparePath);
+  return entries.map((entry) => ({
+    ...entry,
+    href: relativeToServerRoot(server, entry.href)
+  }));
 }
 
 export async function testConnection(server) {

@@ -7,7 +7,7 @@ import {
   normalizePath,
   saveSettings
 } from "./storage.js";
-import { listDirectory, testConnection } from "./webdav.js";
+import { listDirectory, relativeToServerRoot, testConnection } from "./webdav.js";
 
 const state = {
   settings: null,
@@ -16,7 +16,8 @@ const state = {
   activeSection: "history",
   historySelection: new Set(),
   historyQuery: "",
-  historyExpanded: new Set()
+  historyExpanded: new Set(),
+  historyVisibleIds: []
 };
 
 const refs = {
@@ -27,6 +28,7 @@ const refs = {
   historySearch: document.getElementById("historySearch"),
   refreshHistory: document.getElementById("refreshHistory"),
   deleteHistory: document.getElementById("deleteHistory"),
+  selectAllHistory: document.getElementById("selectAllHistory"),
   addServerBtn: document.getElementById("addServerBtn"),
   serverList: document.getElementById("serverList"),
   explorerServer: document.getElementById("explorerServer"),
@@ -78,6 +80,7 @@ function renderHistory() {
   const rawHistory = state.settings.history || [];
   const query = (state.historyQuery || "").trim().toLowerCase();
   const history = query ? rawHistory.filter((entry) => matchesHistoryQuery(entry, query)) : rawHistory;
+  state.historyVisibleIds = history.map((entry) => entry.jobId);
   const availableIds = new Set(rawHistory.map((entry) => entry.jobId));
   Array.from(state.historySelection).forEach((id) => {
     if (!availableIds.has(id)) {
@@ -93,6 +96,7 @@ function renderHistory() {
     refs.historySearch.value = state.historyQuery;
   }
   if (!history.length) {
+    state.historyVisibleIds = [];
     const empty = document.createElement("div");
     empty.className = "rounded-2xl border border-dashed border-slate-200 bg-white/70 p-6 text-sm text-slate-500";
     empty.textContent = state.historyQuery ? `未找到与“${state.historyQuery}”匹配的记录。` : "暂无下载记录。";
@@ -208,10 +212,22 @@ function renderServers() {
 }
 
 function updateHistorySelectionState() {
-  if (!refs.deleteHistory) return;
-  const count = state.historySelection.size;
-  refs.deleteHistory.disabled = count === 0;
-  refs.deleteHistory.textContent = count ? `删除所选 (${count})` : "删除所选";
+  if (refs.deleteHistory) {
+    const count = state.historySelection.size;
+    refs.deleteHistory.disabled = count === 0;
+    refs.deleteHistory.textContent = count ? `删除所选 (${count})` : "删除所选";
+  }
+  if (refs.selectAllHistory) {
+    const visibleIds = state.historyVisibleIds || [];
+    const hasVisible = visibleIds.length > 0;
+    const allSelected = hasVisible && visibleIds.every((id) => state.historySelection.has(id));
+    refs.selectAllHistory.disabled = !hasVisible;
+    if (!hasVisible) {
+      refs.selectAllHistory.textContent = "全选";
+    } else {
+      refs.selectAllHistory.textContent = allSelected ? "取消全选" : `全选 (${visibleIds.length})`;
+    }
+  }
 }
 
 function renderRuleForm() {
@@ -414,13 +430,15 @@ function addPathRow(container, path = {}) {
 
 function extractServer(form) {
   const formData = new FormData(form);
+  const rawBaseUrl = formData.get("baseUrl")?.toString().trim() || "";
+  const rawDefaultPath = formData.get("defaultPath")?.toString().trim() || "/";
   const server = {
     id: form.dataset.serverId,
     name: formData.get("name")?.toString().trim() || "未命名服务器",
-    baseUrl: formData.get("baseUrl")?.toString().trim() || "",
+    baseUrl: rawBaseUrl,
     username: formData.get("username")?.toString().trim() || "",
     password: formData.get("password")?.toString() || "",
-    defaultPath: normalizePath(formData.get("defaultPath")?.toString().trim() || "/"),
+    defaultPath: normalizePath(relativeToServerRoot({ baseUrl: rawBaseUrl }, rawDefaultPath)),
     paths: []
   };
 
@@ -431,7 +449,7 @@ function extractServer(form) {
     server.paths.push({
       id: row.dataset.pathId || crypto.randomUUID(),
       label: label || "下载目录",
-      value: normalizePath(value || "/")
+      value: normalizePath(relativeToServerRoot(server, value || "/"))
     });
   });
 
@@ -595,7 +613,7 @@ async function loadExplorer(pathInput) {
     return;
   }
   const sourcePath = (pathInput ?? refs.explorerPath.value) || "/";
-  const targetPath = normalizePath(sourcePath);
+  const targetPath = normalizePath(relativeToServerRoot(server, sourcePath));
   refs.explorerPath.value = targetPath;
   refs.explorerList.innerHTML = '<div class="p-4 text-sm text-slate-500">加载中...</div>';
   state.explorerLoading = true;
@@ -673,15 +691,17 @@ function openBrowserForInput(input) {
   state.browserTarget = { server, input, label: input.closest("[data-path-row]")?.querySelector("[data-path-label]")?.value || "未命名" };
   refs.explorerServer.value = server.id;
   updateExplorerDropdownSelection(server.id);
-  refs.explorerPath.value = input.value || server.defaultPath || "/";
+  const startingPath = relativeToServerRoot(server, input.value || server.defaultPath || "/");
+  refs.explorerPath.value = startingPath;
   refs.browserTargetLabel.textContent = `当前字段：${server.name} › ${state.browserTarget.label}`;
   refs.explorerApply.disabled = false;
-  loadExplorer(refs.explorerPath.value);
+  loadExplorer(startingPath);
 }
 
 function applyExplorerPath() {
   if (!state.browserTarget) return;
-  const path = normalizePath(refs.explorerPath.value || "/");
+  const targetServer = state.browserTarget.server || getExplorerServer();
+  const path = normalizePath(relativeToServerRoot(targetServer, refs.explorerPath.value || "/"));
   state.browserTarget.input.value = path;
   refs.browserTargetLabel.textContent = `已填入：${path}`;
 }
@@ -720,8 +740,9 @@ async function bootstrap() {
   if (state.settings.webdavServers.length) {
     const initialServer = state.browserTarget?.server || state.settings.webdavServers[0];
     refs.explorerServer.value = initialServer.id;
-    refs.explorerPath.value = initialServer.defaultPath || "/";
-    loadExplorer(refs.explorerPath.value);
+    const initialPath = relativeToServerRoot(initialServer, initialServer.defaultPath || "/");
+    refs.explorerPath.value = initialPath;
+    loadExplorer(initialPath);
   } else {
     refs.explorerList.innerHTML = '<div class="p-4 text-sm text-slate-500">请先创建 WebDAV 服务器。</div>';
   }
@@ -745,6 +766,21 @@ if (refs.refreshHistory) {
 if (refs.historySearch) {
   refs.historySearch.addEventListener("input", (event) => {
     state.historyQuery = event.target.value || "";
+    renderHistory();
+  });
+}
+
+if (refs.selectAllHistory) {
+  refs.selectAllHistory.addEventListener("click", (event) => {
+    event.preventDefault();
+    const visibleIds = state.historyVisibleIds || [];
+    if (!visibleIds.length) return;
+    const allSelected = visibleIds.every((id) => state.historySelection.has(id));
+    if (allSelected) {
+      visibleIds.forEach((id) => state.historySelection.delete(id));
+    } else {
+      visibleIds.forEach((id) => state.historySelection.add(id));
+    }
     renderHistory();
   });
 }

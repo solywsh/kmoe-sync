@@ -72,6 +72,32 @@ function sanitizeBaseUrl(raw) {
   }
 }
 
+function extractBasePathFromUrl(baseUrl) {
+  if (!baseUrl) return "/";
+  try {
+    const url = new URL(baseUrl);
+    return normalizePath(url.pathname || "/");
+  } catch (err) {
+    return "/";
+  }
+}
+
+function stripBasePath(baseUrl, rawPath) {
+  const normalizedPath = normalizePath(rawPath || "/");
+  const basePath = extractBasePathFromUrl(baseUrl);
+  if (!basePath || basePath === "/") {
+    return normalizedPath;
+  }
+  if (normalizedPath === basePath) {
+    return "/";
+  }
+  if (normalizedPath.startsWith(`${basePath}/`)) {
+    const sliced = normalizedPath.slice(basePath.length);
+    return sliced || "/";
+  }
+  return normalizedPath;
+}
+
 function clone(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
@@ -137,24 +163,32 @@ function sanitizeSettings(settings) {
   };
 
   next.webdavServers = next.webdavServers
-    .map((server) => ({
-      ...server,
-      id: server.id || crypto.randomUUID(),
-      name: server.name?.trim() || "未命名服务器",
-      baseUrl: sanitizeBaseUrl(server.baseUrl || ""),
-      username: server.username?.trim() || "",
-      password: server.password || "",
-      defaultPath: normalizePath(server.defaultPath || "/"),
-      paths: Array.isArray(server.paths)
-        ? server.paths
-            .map((path) => ({
-              id: path.id || crypto.randomUUID(),
-              label: path.label?.trim() || "下载目录",
-              value: normalizePath(path.value || "/")
-            }))
-            .filter((path, index, arr) => arr.findIndex((p) => p.id === path.id) === index)
-        : []
-    }))
+    .map((server) => {
+      const sanitized = {
+        ...server,
+        id: server.id || crypto.randomUUID(),
+        name: server.name?.trim() || "未命名服务器",
+        baseUrl: sanitizeBaseUrl(server.baseUrl || ""),
+        username: server.username?.trim() || "",
+        password: server.password || "",
+        defaultPath: normalizePath(server.defaultPath || "/"),
+        paths: Array.isArray(server.paths)
+          ? server.paths
+              .map((path) => ({
+                id: path.id || crypto.randomUUID(),
+                label: path.label?.trim() || "下载目录",
+                value: normalizePath(path.value || "/")
+              }))
+              .filter((path, index, arr) => arr.findIndex((p) => p.id === path.id) === index)
+          : []
+      };
+      sanitized.defaultPath = stripBasePath(sanitized.baseUrl, sanitized.defaultPath);
+      sanitized.paths = sanitized.paths.map((path) => ({
+        ...path,
+        value: stripBasePath(sanitized.baseUrl, path.value)
+      }));
+      return sanitized;
+    })
     .filter((server, index, arr) => arr.findIndex((s) => s.id === server.id) === index);
 
   if (!next.webdavServers.length) {
@@ -166,11 +200,13 @@ function sanitizeSettings(settings) {
     next.lastSelectedServerId = next.webdavServers[0].id;
   }
 
-  const validServerIds = new Set(next.webdavServers.map((server) => server.id));
+  const serverMap = new Map(next.webdavServers.map((server) => [server.id, server]));
+  const validServerIds = new Set(serverMap.keys());
   const sanitizedPaths = {};
   Object.entries(next.lastSelectedPaths || {}).forEach(([serverId, value]) => {
     if (!validServerIds.has(serverId)) return;
-    sanitizedPaths[serverId] = normalizePath(value || "/");
+    const server = serverMap.get(serverId);
+    sanitizedPaths[serverId] = stripBasePath(server?.baseUrl, value || "/");
   });
   if (!sanitizedPaths[next.lastSelectedServerId]) {
     sanitizedPaths[next.lastSelectedServerId] =
