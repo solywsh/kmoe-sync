@@ -5,7 +5,9 @@ import {
   deleteHistoryEntries,
   getSettings,
   normalizePath,
-  saveSettings
+  saveSettings,
+  setServerCollapsed,
+  setServerTestStatus
 } from "./storage.js";
 import { listDirectory, relativeToServerRoot, testConnection } from "./webdav.js";
 
@@ -41,7 +43,17 @@ const refs = {
   ruleTemplate: document.getElementById("ruleTemplate"),
   rulePreview: document.getElementById("rulePreview"),
   saveRule: document.getElementById("saveRule"),
-  resetRule: document.getElementById("resetRule")
+  resetRule: document.getElementById("resetRule"),
+  exportHistory: document.getElementById("exportHistory"),
+  exportServers: document.getElementById("exportServers"),
+  exportRules: document.getElementById("exportRules"),
+  exportBtn: document.getElementById("exportBtn"),
+  importFile: document.getElementById("importFile"),
+  importFileName: document.getElementById("importFileName"),
+  importHistory: document.getElementById("importHistory"),
+  importServers: document.getElementById("importServers"),
+  importRules: document.getElementById("importRules"),
+  importBtn: document.getElementById("importBtn")
 };
 
 function showFeedback(message, tone = "success") {
@@ -345,18 +357,36 @@ function createServerCard(server) {
   card.className = "rounded-2xl border border-slate-100 bg-white/90 p-5 shadow-soft space-y-4";
   card.dataset.serverId = server.id;
   const bodyId = `server-body-${server.id}`;
+
+  // 获取测试状态
+  const testStatus = state.settings?.serverTestStatus?.[server.id];
+  let statusText = "未测试";
+  let statusClass = "text-slate-500";
+  if (testStatus) {
+    if (testStatus.success) {
+      statusText = "连接成功";
+      statusClass = "text-emerald-600";
+    } else {
+      statusText = testStatus.message || "连接失败";
+      statusClass = "text-rose-600";
+    }
+  }
+
+  // 检查是否应该折叠
+  const isCollapsed = state.settings?.collapsedServers?.[server.id] === true;
+
   card.innerHTML = `
     <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
       <div class="flex-1">
         <label class="text-xs text-slate-500">服务器名称</label>
         <input name="name" class="input mt-1" value="${server.name || ""}" />
       </div>
-      <div class="flex items-center gap-3 text-sm text-slate-500">
-        <span>状态：<span data-status class="font-semibold text-slate-800">未测试</span></span>
-        <button type="button" class="btn-text text-slate-500" data-toggle aria-expanded="true">折叠</button>
+      <div class="flex items-center gap-3 text-sm">
+        <span class="text-slate-500">状态：<span data-status class="font-semibold ${statusClass}">${statusText}</span></span>
+        <button type="button" class="btn-text text-slate-500" data-toggle aria-expanded="${!isCollapsed}">${isCollapsed ? "展开" : "折叠"}</button>
       </div>
     </div>
-    <div class="space-y-4" data-body id="${bodyId}">
+    <div class="space-y-4 ${isCollapsed ? "hidden" : ""}" data-body id="${bodyId}">
       <div class="grid gap-3 md:grid-cols-2">
         <label class="text-sm text-slate-600">WebDAV 地址
           <input name="baseUrl" class="input mt-1" placeholder="http://127.0.0.1:5005" value="${server.baseUrl || ""}" required />
@@ -405,13 +435,16 @@ function createServerCard(server) {
   card.querySelector("[data-test]").addEventListener("click", () => testServerConnection(card));
   card.querySelector("[data-delete]").addEventListener("click", () => deleteServer(server.id));
   card.querySelector("[data-add-path]").addEventListener("click", () => addPathRow(pathsContainer));
-  card.querySelector("[data-toggle]").addEventListener("click", (event) => {
+  card.querySelector("[data-toggle]").addEventListener("click", async (event) => {
     event.preventDefault();
     const body = card.querySelector("[data-body]");
     const expanded = event.currentTarget.getAttribute("aria-expanded") === "true";
-    event.currentTarget.setAttribute("aria-expanded", expanded ? "false" : "true");
-    event.currentTarget.textContent = expanded ? "展开" : "折叠";
-    body.classList.toggle("hidden", expanded);
+    const willCollapse = expanded;
+    event.currentTarget.setAttribute("aria-expanded", willCollapse ? "false" : "true");
+    event.currentTarget.textContent = willCollapse ? "展开" : "折叠";
+    body.classList.toggle("hidden", willCollapse);
+    // 保存折叠状态
+    await setServerCollapsed(server.id, willCollapse);
   });
 
   return card;
@@ -481,16 +514,30 @@ async function testServerConnection(form) {
   const server = extractServer(form);
   const status = form.querySelector("[data-status]");
   status.textContent = "测试中...";
-  status.classList.remove("text-slate-900", "text-slate-600");
-  status.classList.add("text-slate-600");
+  status.classList.remove("text-emerald-600", "text-rose-600", "text-slate-500");
+  status.classList.add("text-slate-500");
   try {
     await testConnection(server);
     status.textContent = "连接成功";
-    status.classList.remove("text-slate-600");
-    status.classList.add("text-slate-900");
+    status.classList.remove("text-slate-500");
+    status.classList.add("text-emerald-600");
+    // 保存测试成功状态
+    await setServerTestStatus(server.id, {
+      success: true,
+      message: "连接成功",
+      testedAt: Date.now()
+    });
   } catch (error) {
-    status.textContent = error.message || "失败";
-    status.classList.add("text-slate-600");
+    const errorMsg = error.message || "连接失败";
+    status.textContent = errorMsg;
+    status.classList.remove("text-slate-500");
+    status.classList.add("text-rose-600");
+    // 保存测试失败状态
+    await setServerTestStatus(server.id, {
+      success: false,
+      message: errorMsg,
+      testedAt: Date.now()
+    });
   }
 }
 
@@ -513,8 +560,8 @@ function refreshExplorerOptions() {
     button.dataset.dropdownOption = "true";
     button.dataset.value = option.value;
     button.innerHTML = `
-      <span>${option.label}</span>
-      ${option.description ? `<span class="text-xs text-slate-400">${option.description}</span>` : ""}
+      <span class="truncate flex-1 min-w-0 text-left" title="${option.label}">${option.label}</span>
+      ${option.description ? `<span class="text-xs text-slate-400 shrink-0 truncate max-w-[40%] text-left" title="${option.description}">${option.description}</span>` : ""}
     `;
     panel.appendChild(button);
   });
@@ -711,10 +758,10 @@ function updateRulePreview() {
   const preview = applyRuleTemplate(template, {
     title: "示例漫画",
     filename: "卷001",
-    ext: "zip",
+    ext: "epub",
     date: new Date()
   });
-  const finalPath = preview.includesExt ? preview.path : `${preview.path}.zip`;
+  const finalPath = preview.includesExt ? preview.path : `${preview.path}.epub`;
   refs.rulePreview.textContent = `预览路径：/根目录/${finalPath}`;
 }
 
@@ -827,5 +874,210 @@ refs.resetRule.addEventListener("click", (event) => {
   event.preventDefault();
   resetRuleTemplate();
 });
+
+// 导出/导入功能
+function exportConfig() {
+  if (!state.settings) return;
+
+  const config = {
+    version: "1.0",
+    exportedAt: Date.now(),
+    data: {}
+  };
+
+  const exported = [];
+
+  if (refs.exportHistory?.checked) {
+    config.data.history = state.settings.history || [];
+    exported.push("下载历史");
+  }
+
+  if (refs.exportServers?.checked) {
+    config.data.webdavServers = state.settings.webdavServers || [];
+    exported.push("WebDAV服务器");
+  }
+
+  if (refs.exportRules?.checked) {
+    config.data.downloadRule = state.settings.downloadRule || defaultSettings.downloadRule;
+    exported.push("下载规则");
+  }
+
+  if (exported.length === 0) {
+    showFeedback("请至少选择一项要导出的内容", "danger");
+    return;
+  }
+
+  // 生成文件名
+  const date = new Date();
+  const dateStr = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
+  const filename = `kmoe-sync-config-${dateStr}.json`;
+
+  // 下载文件
+  const blob = new Blob([JSON.stringify(config, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  showFeedback(`已导出 ${exported.join("、")} 到 ${filename}`);
+}
+
+async function importConfig(file) {
+  if (!file) return;
+
+  try {
+    const text = await file.text();
+    const config = JSON.parse(text);
+
+    if (!config.data || typeof config.data !== "object") {
+      throw new Error("配置文件格式不正确");
+    }
+
+    const currentSettings = await getSettings();
+    let updated = false;
+
+    // 导入下载历史
+    if (refs.importHistory?.checked && Array.isArray(config.data.history)) {
+      const existingHistory = currentSettings.history || [];
+      const importedHistory = config.data.history;
+
+      // 合并历史记录，去重（按jobId）
+      const historyMap = new Map();
+      [...existingHistory, ...importedHistory].forEach((entry) => {
+        const id = entry.jobId || entry.id;
+        if (id && !historyMap.has(id)) {
+          historyMap.set(id, entry);
+        }
+      });
+
+      // 按时间排序（最新的在前）
+      currentSettings.history = Array.from(historyMap.values()).sort((a, b) => {
+        const timeA = a.startedAt || 0;
+        const timeB = b.startedAt || 0;
+        return timeB - timeA;
+      });
+
+      updated = true;
+    }
+
+    // 导入WebDAV服务器
+    if (refs.importServers?.checked && Array.isArray(config.data.webdavServers)) {
+      const existingServers = currentSettings.webdavServers || [];
+      const importedServers = config.data.webdavServers;
+
+      // 过滤掉示例服务器（baseUrl 包含 example.com 的）
+      const realExistingServers = existingServers.filter(
+        (server) => !server.baseUrl?.includes("example.com")
+      );
+
+      // 按baseUrl校验，重复则保留原有配置
+      const serverMap = new Map();
+      realExistingServers.forEach((server) => {
+        if (server.baseUrl) {
+          serverMap.set(server.baseUrl, server);
+        }
+      });
+
+      // 导入的服务器也过滤掉示例服务器
+      const realImportedServers = importedServers.filter(
+        (server) => !server.baseUrl?.includes("example.com")
+      );
+
+      realImportedServers.forEach((server) => {
+        if (server.baseUrl && !serverMap.has(server.baseUrl)) {
+          serverMap.set(server.baseUrl, server);
+        }
+      });
+
+      const mergedServers = Array.from(serverMap.values());
+
+      // 如果合并后没有服务器，保留一个示例服务器
+      currentSettings.webdavServers =
+        mergedServers.length > 0 ? mergedServers : [defaultSettings.webdavServers[0]];
+      updated = true;
+    }
+
+    // 导入下载规则
+    if (refs.importRules?.checked && config.data.downloadRule) {
+      currentSettings.downloadRule = config.data.downloadRule;
+      updated = true;
+    }
+
+    if (updated) {
+      await saveSettings(currentSettings);
+      await bootstrap();
+
+      const imported = [];
+      if (refs.importHistory?.checked) imported.push("下载历史");
+      if (refs.importServers?.checked) imported.push("WebDAV服务器");
+      if (refs.importRules?.checked) imported.push("下载规则");
+
+      showFeedback(`成功导入：${imported.join("、")}`);
+    } else {
+      showFeedback("未选择任何导入项", "danger");
+    }
+  } catch (error) {
+    showFeedback(`导入失败：${error.message}`, "danger");
+  }
+}
+
+if (refs.exportBtn) {
+  refs.exportBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    exportConfig();
+  });
+}
+
+if (refs.importFile) {
+  refs.importFile.addEventListener("change", (event) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      refs.importFileName.textContent = file.name;
+      refs.importBtn.disabled = false;
+    } else {
+      refs.importFileName.textContent = "尚未选择文件";
+      refs.importBtn.disabled = true;
+    }
+  });
+}
+
+if (refs.importBtn) {
+  refs.importBtn.addEventListener("click", async (event) => {
+    event.preventDefault();
+    const file = refs.importFile?.files?.[0];
+    if (file) {
+      await importConfig(file);
+      // 清除文件选择
+      refs.importFile.value = "";
+      refs.importFileName.textContent = "尚未选择文件";
+      refs.importBtn.disabled = true;
+    }
+  });
+}
+
+// 导出/导入折叠功能
+const toggleExport = document.querySelector("[data-toggle-export]");
+const exportBody = document.querySelector("[data-export-body]");
+if (toggleExport && exportBody) {
+  toggleExport.addEventListener("click", () => {
+    const expanded = toggleExport.getAttribute("aria-expanded") === "true";
+    toggleExport.setAttribute("aria-expanded", !expanded ? "true" : "false");
+    toggleExport.textContent = !expanded ? "折叠" : "展开";
+    exportBody.classList.toggle("hidden", expanded);
+  });
+}
+
+const toggleImport = document.querySelector("[data-toggle-import]");
+const importBody = document.querySelector("[data-import-body]");
+if (toggleImport && importBody) {
+  toggleImport.addEventListener("click", () => {
+    const expanded = toggleImport.getAttribute("aria-expanded") === "true";
+    toggleImport.setAttribute("aria-expanded", !expanded ? "true" : "false");
+    toggleImport.textContent = !expanded ? "折叠" : "展开";
+    importBody.classList.toggle("hidden", expanded);
+  });
+}
 
 bootstrap();

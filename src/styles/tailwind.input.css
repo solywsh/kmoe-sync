@@ -35,7 +35,7 @@
   }
 
   .dropdown-option {
-    @apply flex w-full items-center justify-between px-4 py-2 text-sm text-slate-700 hover:bg-slate-50;
+    @apply flex w-full items-center justify-start gap-2 px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50;
   }
 
   .dropdown-option.active {

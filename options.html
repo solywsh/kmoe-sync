@@ -27,6 +27,10 @@
             <span>下载规则</span>
             <small>定义文件夹结构</small>
           </button>
+          <button class="nav-pill" data-nav="backup">
+            <span>导出/导入</span>
+            <small>备份与还原配置</small>
+          </button>
         </nav>
       </aside>
 
@@ -117,7 +121,7 @@
               <ul class="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-500">
                 <li><code>{title}</code> 漫画标题</li>
                 <li><code>{filename}</code> 原始文件名（无扩展名）</li>
-                <li><code>{ext}</code> 扩展名，若模板中未使用，将自动拼接</li>
+                <li><code>{ext}</code> 扩展名（epub/mobi），若模板中未使用，将自动拼接</li>
                 <li><code>{year}</code> / <code>{month}</code> / <code>{day}</code> / <code>{hour}</code> / <code>{min}</code> 基于下载时间</li>
               </ul>
             </div>
@@ -125,6 +129,105 @@
             <div class="flex flex-wrap gap-3">
               <button id="resetRule" class="btn-secondary">恢复默认</button>
               <button id="saveRule" class="btn-primary">保存规则</button>
+            </div>
+          </div>
+        </section>
+
+        <section data-section="backup" class="panel hidden" hidden>
+          <header class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p class="text-xs uppercase tracking-[0.4em] text-slate-400">Backup</p>
+              <h2 class="text-2xl font-semibold">导出/导入配置</h2>
+            </div>
+          </header>
+          <div class="mt-6 space-y-6">
+            <!-- 导出功能 -->
+            <div class="rounded-3xl border border-white/70 bg-white/80 p-6 shadow-soft">
+              <div class="mb-4 flex items-center justify-between">
+                <div>
+                  <p class="text-lg font-semibold">导出配置</p>
+                  <p class="text-sm text-slate-500">选择需要导出的配置项，将生成 JSON 文件。</p>
+                </div>
+                <button type="button" class="btn-text text-slate-500" data-toggle-export aria-expanded="false">展开</button>
+              </div>
+              <div class="space-y-3 hidden" data-export-body>
+                <label class="flex items-center gap-3 text-sm">
+                  <input type="checkbox" id="exportHistory" class="h-4 w-4 rounded border-slate-300 text-slate-900" checked />
+                  <div>
+                    <span class="font-semibold text-slate-700">下载历史</span>
+                    <p class="text-xs text-slate-500">包含所有下载记录和文件状态</p>
+                  </div>
+                </label>
+                <label class="flex items-center gap-3 text-sm">
+                  <input type="checkbox" id="exportServers" class="h-4 w-4 rounded border-slate-300 text-slate-900" checked />
+                  <div>
+                    <span class="font-semibold text-slate-700">WebDAV 服务器</span>
+                    <p class="text-xs text-slate-500">包含服务器地址、账号密码和路径配置</p>
+                  </div>
+                </label>
+                <label class="flex items-center gap-3 text-sm">
+                  <input type="checkbox" id="exportRules" class="h-4 w-4 rounded border-slate-300 text-slate-900" checked />
+                  <div>
+                    <span class="font-semibold text-slate-700">下载规则</span>
+                    <p class="text-xs text-slate-500">包含文件命名模板配置</p>
+                  </div>
+                </label>
+              </div>
+              <button id="exportBtn" class="btn-primary mt-5">导出配置文件</button>
+            </div>
+
+            <!-- 导入功能 -->
+            <div class="rounded-3xl border border-white/70 bg-white/80 p-6 shadow-soft">
+              <div class="mb-4 flex items-center justify-between">
+                <div>
+                  <p class="text-lg font-semibold">导入配置</p>
+                  <p class="text-sm text-slate-500">上传之前导出的 JSON 配置文件。</p>
+                </div>
+                <button type="button" class="btn-text text-slate-500" data-toggle-import aria-expanded="false">展开</button>
+              </div>
+              <div class="space-y-4 hidden" data-import-body>
+                <div>
+                  <label class="btn-secondary inline-flex cursor-pointer items-center gap-2">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                    <span>选择配置文件</span>
+                    <input type="file" id="importFile" accept=".json" class="hidden" />
+                  </label>
+                  <p id="importFileName" class="mt-2 text-xs text-slate-500">尚未选择文件</p>
+                </div>
+
+                <div class="rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
+                  <p class="mb-3 text-sm font-semibold text-slate-700">导入选项</p>
+                  <div class="space-y-3">
+                    <label class="flex items-center gap-3 text-sm">
+                      <input type="checkbox" id="importHistory" class="h-4 w-4 rounded border-slate-300 text-slate-900" checked />
+                      <div>
+                        <span class="font-semibold text-slate-700">导入下载历史</span>
+                        <p class="text-xs text-slate-500">合并到现有历史记录，按时间排序</p>
+                      </div>
+                    </label>
+                    <label class="flex items-center gap-3 text-sm">
+                      <input type="checkbox" id="importServers" class="h-4 w-4 rounded border-slate-300 text-slate-900" checked />
+                      <div>
+                        <span class="font-semibold text-slate-700">导入 WebDAV 服务器</span>
+                        <p class="text-xs text-slate-500">若地址重复，保留原有配置</p>
+                      </div>
+                    </label>
+                    <label class="flex items-center gap-3 text-sm">
+                      <input type="checkbox" id="importRules" class="h-4 w-4 rounded border-slate-300 text-slate-900" checked />
+                      <div>
+                        <span class="font-semibold text-slate-700">导入下载规则</span>
+                        <p class="text-xs text-slate-500">将覆盖当前的下载规则配置</p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <button id="importBtn" class="btn-primary" disabled>导入配置</button>
+              </div>
             </div>
           </div>
         </section>

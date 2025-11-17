@@ -18,7 +18,9 @@ export const defaultSettings = {
   lastSelectedPaths: { [SAMPLE_SERVER.id]: SAMPLE_SERVER.defaultPath },
   floatingButtonPosition: { x: null, y: null },
   downloadRule: DEFAULT_RULE,
-  history: []
+  history: [],
+  collapsedServers: {},
+  serverTestStatus: {}
 };
 
 export function createEmptyServer() {
@@ -159,7 +161,15 @@ function sanitizeSettings(settings) {
         : clone(defaultSettings.lastSelectedPaths),
     floatingButtonPosition: sanitizeFloatingButtonPosition(settings?.floatingButtonPosition),
     downloadRule: settings?.downloadRule?.trim() || DEFAULT_RULE,
-    history: sanitizeHistory(settings?.history || [])
+    history: sanitizeHistory(settings?.history || []),
+    collapsedServers:
+      typeof settings?.collapsedServers === "object" && settings.collapsedServers
+        ? { ...settings.collapsedServers }
+        : {},
+    serverTestStatus:
+      typeof settings?.serverTestStatus === "object" && settings.serverTestStatus
+        ? { ...settings.serverTestStatus }
+        : {}
   };
 
   next.webdavServers = next.webdavServers
@@ -388,4 +398,34 @@ export function applyRuleTemplate(template, context = {}) {
   const normalized = normalizeRuleSegments(replaced) || tokens.filename || "download";
 
   return { path: normalized, includesExt };
+}
+
+export async function setServerCollapsed(serverId, collapsed) {
+  if (!serverId) return null;
+  const settings = await getSettings();
+  if (!settings.collapsedServers || typeof settings.collapsedServers !== "object") {
+    settings.collapsedServers = {};
+  }
+  settings.collapsedServers[serverId] = !!collapsed;
+  await saveSettings(settings);
+  return settings;
+}
+
+export async function setServerTestStatus(serverId, status) {
+  if (!serverId) return null;
+  const settings = await getSettings();
+  if (!settings.serverTestStatus || typeof settings.serverTestStatus !== "object") {
+    settings.serverTestStatus = {};
+  }
+  if (status === null) {
+    delete settings.serverTestStatus[serverId];
+  } else {
+    settings.serverTestStatus[serverId] = {
+      success: !!status.success,
+      message: status.message || "",
+      testedAt: status.testedAt || Date.now()
+    };
+  }
+  await saveSettings(settings);
+  return settings;
 }

@@ -41,7 +41,7 @@
     { id: "mox", label: "线路 C · mox.moe", origin: "https://mox.moe", vip: 3 },
     { id: "koz", label: "线路 D · koz.moe", origin: "https://koz.moe", vip: 4 },
     { id: "kox", label: "线路 E · kox.moe", origin: "https://kox.moe", vip: 5 },
-    { id: "kox", label: "线路 E · kzz.moe", origin: "https://kzz.moe", vip: 6 }
+    { id: "kox", label: "线路 F · kzz.moe", origin: "https://kzz.moe", vip: 6 }
   ];
   const FORMAT_OPTIONS = [
     { id: "epub", label: "EPUB 格式", value: 2 },
@@ -120,8 +120,8 @@
             <div class="mt-4 grid gap-3 sm:grid-cols-2">
               <div class="dropdown" data-dropdown="server">
                 <button type="button" class="dropdown-toggle" data-dropdown-toggle>
-                  <span data-dropdown-label>选择服务器</span>
-                  <svg viewBox="0 0 20 20" fill="none" class="h-4 w-4 text-slate-500" aria-hidden="true">
+                  <span class="truncate" data-dropdown-label>选择服务器</span>
+                  <svg viewBox="0 0 20 20" fill="none" class="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true">
                     <path d="M6 8l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
                   </svg>
                 </button>
@@ -129,8 +129,8 @@
               </div>
               <div class="dropdown" data-dropdown="path">
                 <button type="button" class="dropdown-toggle" data-dropdown-toggle>
-                  <span data-dropdown-label>选择目录</span>
-                  <svg viewBox="0 0 20 20" fill="none" class="h-4 w-4 text-slate-500" aria-hidden="true">
+                  <span class="truncate" data-dropdown-label>选择目录</span>
+                  <svg viewBox="0 0 20 20" fill="none" class="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true">
                     <path d="M6 8l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
                   </svg>
                 </button>
@@ -146,8 +146,8 @@
                 <label class="text-xs font-semibold text-slate-500">下载线路</label>
                 <div class="dropdown" data-dropdown="line">
                   <button type="button" class="dropdown-toggle" data-dropdown-toggle>
-                    <span data-dropdown-label>选择线路</span>
-                    <svg viewBox="0 0 20 20" fill="none" class="h-4 w-4 text-slate-500" aria-hidden="true">
+                    <span class="truncate" data-dropdown-label>选择线路</span>
+                    <svg viewBox="0 0 20 20" fill="none" class="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true">
                       <path d="M6 8l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                   </button>
@@ -158,8 +158,8 @@
                 <label class="text-xs font-semibold text-slate-500">文件格式</label>
                 <div class="dropdown" data-dropdown="format">
                   <button type="button" class="dropdown-toggle" data-dropdown-toggle>
-                    <span data-dropdown-label>选择格式</span>
-                    <svg viewBox="0 0 20 20" fill="none" class="h-4 w-4 text-slate-500" aria-hidden="true">
+                    <span class="truncate" data-dropdown-label>选择格式</span>
+                    <svg viewBox="0 0 20 20" fill="none" class="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true">
                       <path d="M6 8l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                   </button>
@@ -344,8 +344,8 @@
         button.dataset.dropdownOption = "true";
         button.dataset.value = option.value;
         button.innerHTML = `
-          <span>${option.label}</span>
-          ${option.description ? `<span class="text-xs text-slate-400">${option.description}</span>` : ""}
+          <span class="truncate flex-1 min-w-0 text-left">${option.label}</span>
+          ${option.description ? `<span class="text-xs text-slate-400 shrink-0 truncate max-w-[40%] text-left" title="${option.description}">${option.description}</span>` : ""}
         `;
         panel.appendChild(button);
       });
@@ -440,6 +440,7 @@
   function refreshFormatOptions() {
     const available = FORMAT_OPTIONS.length ? FORMAT_OPTIONS : [{ value: 2, label: "EPUB", id: "epub" }];
     const current = Number.isFinite(state.fileFormat) ? state.fileFormat : available[0]?.value;
+    state.fileFormat = current;
     dropdowns.format?.setOptions(
       available.map((format) => ({
         value: String(format.value),
@@ -759,6 +760,21 @@
   function handleFormatChange(value) {
     const parsed = Number(value);
     state.fileFormat = Number.isFinite(parsed) ? parsed : FORMAT_OPTIONS[0]?.value || 2;
+    updateItemSizesByFormat();
+    renderGroups();
+  }
+
+  function updateItemSizesByFormat() {
+    if (!state.itemsById) return;
+    const isMobi = state.fileFormat === 1;
+    state.itemsById.forEach((item) => {
+      const correctSize = isMobi
+        ? item.mobiSize || item.fallbackSize
+        : item.epubSize || item.fallbackSize;
+      item.sizeMB = correctSize;
+      item.sizeLabel = correctSize ? formatSizeLabel(correctSize) : "未知大小";
+      item.quotaCost = correctSize;
+    });
   }
 
   async function startDownload() {
@@ -1009,7 +1025,9 @@
       const rawType = entry[3] || "其他";
       const groupLabel = normalizeGroupLabel(rawType);
       const label = entry[5] || `项目 ${id}`;
-      const size = normalizeSizeValue(entry[10] ?? entry[9]);
+      const mobiSize = normalizeSizeValue(entry[9] ?? 0);
+      const epubSize = normalizeSizeValue(entry[11] ?? 0);
+      const fallbackSize = normalizeSizeValue(entry[9] ?? 0);
       const pages = parseInt(entry[6], 10) || parseInt(entry[7], 10) || 0;
       const { path: downloadPath, absolute } = buildDownloadPath(
         payload.downPrefix || `/dl/${payload.bookId}/`,
@@ -1020,13 +1038,16 @@
         id,
         label,
         type: groupLabel,
-        sizeMB: size,
-        sizeLabel: size ? formatSizeLabel(size) : "未知大小",
+        mobiSize,
+        epubSize,
+        fallbackSize,
+        sizeMB: 0,
+        sizeLabel: "未知大小",
         pages,
         order: parseInt(entry[4], 10) || 0,
         downloadPath,
         absoluteUrl: absolute,
-        quotaCost: size
+        quotaCost: 0
       };
       if (!groupsMap.has(groupLabel)) {
         groupsMap.set(groupLabel, []);
@@ -1061,6 +1082,7 @@
       state.fileFormat = payload.fileFormat;
     }
     refreshFormatOptions();
+    updateItemSizesByFormat();
     updateMangaHeader();
     renderGroups();
     updateQuotaDisplay();
