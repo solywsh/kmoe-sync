@@ -123,8 +123,37 @@ async function handleDownloadRequest(payload, tabId) {
       const startedAt = Date.now();
       await patchHistoryFile(historyEntry.jobId, fileId, { status: "downloading", startedAt, error: "" }, label);
       await sendProgress(tabId, { jobId: payload.jobId, status: "downloading", label: item.label });
-      const downloadResult = await requestContentDownload(item.downloadUrl, item.referer || payload.pageUrl || payload.lineOrigin || payload.downloadOrigin);
-      await patchHistoryFile(historyEntry.jobId, fileId, { status: "uploading" }, label);
+
+      // Download with progress tracking
+      const downloadResult = await requestContentDownload(
+        item.downloadUrl,
+        item.referer || payload.pageUrl || payload.lineOrigin || payload.downloadOrigin,
+        async (progress) => {
+          await patchHistoryFile(historyEntry.jobId, fileId, {
+            downloadSize: progress.downloaded,
+            downloadTotal: progress.total,
+            downloadSpeed: progress.speed
+          }, label);
+          await sendProgress(tabId, {
+            jobId: payload.jobId,
+            status: "downloading",
+            label: item.label,
+            progress: {
+              downloaded: progress.downloaded,
+              total: progress.total,
+              speed: progress.speed,
+              type: "download"
+            }
+          });
+        }
+      );
+
+      await patchHistoryFile(historyEntry.jobId, fileId, {
+        status: "uploading",
+        downloadSize: downloadResult.buffer.byteLength,
+        downloadTotal: downloadResult.buffer.byteLength,
+        downloadSpeed: 0
+      }, label);
       await sendProgress(tabId, { jobId: payload.jobId, status: "uploading", label: item.label });
       const preferredExt = mapFormatToExt(payload.fileFormat);
       const fileInfo = buildFileInfo(
@@ -149,7 +178,27 @@ async function handleDownloadRequest(payload, tabId) {
       }
       const remotePath = joinRemotePath(targetDir, relativePath);
       const contentType = downloadResult.contentType || "application/octet-stream";
-      await uploadFile(server, remotePath, downloadResult.buffer, contentType);
+
+      // Upload with progress tracking
+      await uploadFile(server, remotePath, downloadResult.buffer, contentType, async (progress) => {
+        await patchHistoryFile(historyEntry.jobId, fileId, {
+          uploadSize: progress.uploaded,
+          uploadTotal: progress.total,
+          uploadSpeed: progress.speed
+        }, label);
+        await sendProgress(tabId, {
+          jobId: payload.jobId,
+          status: "uploading",
+          label: item.label,
+          progress: {
+            uploaded: progress.uploaded,
+            total: progress.total,
+            speed: progress.speed,
+            type: "upload"
+          }
+        });
+      });
+
       summary.success += 1;
       await patchHistoryFile(
         historyEntry.jobId,
@@ -278,7 +327,7 @@ async function ensureConfiguredDownloadDirectories(server, extraPaths = []) {
   }
 }
 
-async function requestContentDownload(url, referer) {
+async function requestContentDownload(url, referer, progressCallback) {
   const headers = new Headers({
     Accept: "application/octet-stream",
     "X-KM-FROM": "kb_http_down"
@@ -301,9 +350,75 @@ async function requestContentDownload(url, referer) {
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);
   }
-  const buffer = await response.arrayBuffer();
+
+  const contentLength = response.headers.get("content-length");
+  const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+  if (!response.body || !progressCallback) {
+    // Fallback to simple download without progress
+    const buffer = await response.arrayBuffer();
+    return {
+      buffer,
+      contentType: response.headers.get("content-type") || "application/octet-stream",
+      contentDisposition: response.headers.get("content-disposition") || null
+    };
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let downloaded = 0;
+  let lastUpdate = Date.now();
+  let lastDownloaded = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      chunks.push(value);
+      downloaded += value.length;
+
+      // Calculate speed and send progress update
+      const now = Date.now();
+      const timeDiff = (now - lastUpdate) / 1000; // seconds
+      if (timeDiff >= 0.5) { // Update every 0.5 seconds
+        const byteDiff = downloaded - lastDownloaded;
+        const speed = timeDiff > 0 ? byteDiff / timeDiff : 0;
+
+        await progressCallback({
+          downloaded,
+          total,
+          speed
+        });
+
+        lastUpdate = now;
+        lastDownloaded = downloaded;
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  // Final progress update
+  if (progressCallback) {
+    await progressCallback({
+      downloaded,
+      total,
+      speed: 0
+    });
+  }
+
+  // Combine chunks into single buffer
+  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const buffer = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    buffer.set(chunk, offset);
+    offset += chunk.length;
+  }
+
   return {
-    buffer,
+    buffer: buffer.buffer,
     contentType: response.headers.get("content-type") || "application/octet-stream",
     contentDisposition: response.headers.get("content-disposition") || null
   };

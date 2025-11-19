@@ -211,16 +211,108 @@ export async function ensureDirectory(server, dirPath) {
   }
 }
 
-export async function uploadFile(server, remotePath, data, contentType = "application/octet-stream") {
-  const response = await webDavFetch(server, remotePath, {
-    method: "PUT",
-    headers: { "Content-Type": contentType },
-    body: data
-  });
+export async function uploadFile(server, remotePath, data, contentType = "application/octet-stream", progressCallback) {
+  const totalSize = data.byteLength || data.size || 0;
 
-  if (!response.ok) {
-    throw new Error(`上传失败 (${response.status})`);
+  // If no progress callback, use simple fetch
+  if (!progressCallback) {
+    const response = await webDavFetch(server, remotePath, {
+      method: "PUT",
+      headers: { "Content-Type": contentType },
+      body: data
+    });
+
+    if (!response.ok) {
+      throw new Error(`上传失败 (${response.status})`);
+    }
+
+    return true;
   }
 
-  return true;
+  // For all files with progress callback, simulate progress with timer-based estimation
+  const startTime = Date.now();
+  let progressInterval = null;
+  let lastReportedProgress = 0;
+  let lastUpdateTime = startTime;
+  let smoothedSpeed = 0;
+
+  // Adaptive speed estimation based on file size
+  // Small files: estimate faster completion
+  // Large files: more conservative estimate
+  let estimatedSpeed;
+  if (totalSize < 1024 * 1024) { // < 1MB
+    estimatedSpeed = 10 * 1024 * 1024; // 10 MB/s for small files
+  } else if (totalSize < 10 * 1024 * 1024) { // < 10MB
+    estimatedSpeed = 5 * 1024 * 1024; // 5 MB/s for medium files
+  } else {
+    estimatedSpeed = 3 * 1024 * 1024; // 3 MB/s for large files
+  }
+
+  const reportProgress = async () => {
+    const now = Date.now();
+    const elapsed = (now - startTime) / 1000; // seconds since start
+    const timeSinceLastUpdate = (now - lastUpdateTime) / 1000;
+
+    // Use exponential approach to 95% (smoother progress)
+    const targetProgress = totalSize * 0.95;
+    const progressRate = 1 - Math.exp(-elapsed / (totalSize / estimatedSpeed));
+    const estimatedUploaded = Math.min(targetProgress * progressRate, targetProgress);
+
+    // Calculate instantaneous speed (bytes uploaded since last update)
+    const bytesUploaded = estimatedUploaded - lastReportedProgress;
+    const instantSpeed = timeSinceLastUpdate > 0 ? bytesUploaded / timeSinceLastUpdate : 0;
+
+    // Smooth the speed with exponential moving average
+    const smoothingFactor = 0.3;
+    smoothedSpeed = smoothedSpeed * (1 - smoothingFactor) + instantSpeed * smoothingFactor;
+
+    if (estimatedUploaded > lastReportedProgress) {
+      lastReportedProgress = estimatedUploaded;
+      lastUpdateTime = now;
+
+      await progressCallback({
+        uploaded: Math.floor(estimatedUploaded),
+        total: totalSize,
+        speed: smoothedSpeed
+      });
+    }
+  };
+
+  // Start progress reporting interval
+  progressInterval = setInterval(reportProgress, 500); // Update every 500ms
+
+  try {
+    const response = await webDavFetch(server, remotePath, {
+      method: "PUT",
+      headers: { "Content-Type": contentType },
+      body: data
+    });
+
+    // Clear interval
+    if (progressInterval) {
+      clearInterval(progressInterval);
+    }
+
+    if (!response.ok) {
+      throw new Error(`上传失败 (${response.status})`);
+    }
+
+    // Report final progress with actual speed
+    const totalDuration = (Date.now() - startTime) / 1000;
+    const actualSpeed = totalDuration > 0 ? totalSize / totalDuration : 0;
+
+    await progressCallback({
+      uploaded: totalSize,
+      total: totalSize,
+      speed: actualSpeed
+    });
+
+    return true;
+  } catch (error) {
+    // Clear interval on error
+    if (progressInterval) {
+      clearInterval(progressInterval);
+    }
+    throw error;
+  }
 }

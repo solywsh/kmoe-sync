@@ -834,25 +834,73 @@
     }
   }
 
+  function formatSpeed(bytesPerSecond) {
+    if (!bytesPerSecond || bytesPerSecond < 1) return "0 B/s";
+    const units = ["B/s", "KB/s", "MB/s", "GB/s"];
+    let value = bytesPerSecond;
+    let unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value /= 1024;
+      unitIndex++;
+    }
+    return `${value.toFixed(2)} ${units[unitIndex]}`;
+  }
+
+  function formatProgress(current, total) {
+    if (!total) return "未知大小";
+    const units = ["B", "KB", "MB", "GB"];
+    let currentValue = current;
+    let totalValue = total;
+    let unitIndex = 0;
+    while (totalValue >= 1024 && unitIndex < units.length - 1) {
+      currentValue /= 1024;
+      totalValue /= 1024;
+      unitIndex++;
+    }
+    const percentage = total > 0 ? ((current / total) * 100).toFixed(1) : 0;
+    return `${currentValue.toFixed(2)}/${totalValue.toFixed(2)} ${units[unitIndex]} (${percentage}%)`;
+  }
+
   function handleProgressMessage(message) {
     if (message?.jobId !== state.jobId) return;
-    const { status, label, info, fatal } = message;
+    const { status, label, info, fatal, progress } = message;
+
     if (status === "downloading") {
-      appendLog(`正在下载 ${label}`, "info");
+      if (progress && progress.type === "download") {
+        const speedText = formatSpeed(progress.speed);
+        const progressText = formatProgress(progress.downloaded, progress.total);
+        appendLog(`下载中 ${label} - ${progressText} - ${speedText}`, "info");
+        elements.statusText.textContent = `下载: ${label} | ${progressText} | ${speedText}`;
+      } else {
+        appendLog(`正在下载 ${label}`, "info");
+        elements.statusText.textContent = `正在下载: ${label}`;
+      }
     } else if (status === "uploading") {
-      appendLog(`上传到 WebDAV：${label}`, "info");
+      if (progress && progress.type === "upload") {
+        const speedText = formatSpeed(progress.speed);
+        const progressText = formatProgress(progress.uploaded, progress.total);
+        appendLog(`上传中 ${label} - ${progressText} - ${speedText}`, "info");
+        elements.statusText.textContent = `上传: ${label} | ${progressText} | ${speedText}`;
+      } else {
+        appendLog(`上传到 WebDAV：${label}`, "info");
+        elements.statusText.textContent = `上传到 WebDAV: ${label}`;
+      }
     } else if (status === "error") {
       appendLog(`${label} 失败：${info}`, "error");
+      elements.statusText.textContent = `错误: ${label}`;
       if (fatal) {
         state.jobActive = false;
         updateStartButton();
       }
     } else if (status === "fatal") {
       appendLog(info || "任务失败", "error");
+      elements.statusText.textContent = `任务失败: ${info || "未知错误"}`;
       state.jobActive = false;
       updateStartButton();
     } else if (status === "finished") {
-      appendLog(`完成 ${info.success}/${info.total} 个项目`, info.failed ? "error" : "success");
+      const successRate = `${info.success}/${info.total}`;
+      appendLog(`完成 ${successRate} 个项目`, info.failed ? "error" : "success");
+      elements.statusText.textContent = `已完成: ${successRate} 个文件`;
       state.jobActive = false;
       updateStartButton();
     }

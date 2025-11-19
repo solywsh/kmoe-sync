@@ -56,6 +56,30 @@ const refs = {
   importBtn: document.getElementById("importBtn")
 };
 
+function formatSpeed(bytesPerSecond) {
+  if (!bytesPerSecond || bytesPerSecond < 1) return "0 B/s";
+  const units = ["B/s", "KB/s", "MB/s", "GB/s"];
+  let value = bytesPerSecond;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex++;
+  }
+  return `${value.toFixed(2)} ${units[unitIndex]}`;
+}
+
+function formatSize(bytes) {
+  if (!bytes || bytes < 1) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  let value = bytes;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex++;
+  }
+  return `${value.toFixed(2)} ${units[unitIndex]}`;
+}
+
 function showFeedback(message, tone = "success") {
   if (!refs.feedback) return;
   refs.feedback.hidden = false;
@@ -120,14 +144,7 @@ function renderHistory() {
   history.forEach((entry) => {
     const card = document.createElement("div");
     card.className = "rounded-2xl border border-slate-100 bg-white/90 p-4 shadow-soft";
-    const statusColors = {
-      success: "text-white bg-slate-900",
-      failed: "text-white bg-rose-500",
-      processing: "text-slate-700 bg-slate-200"
-    };
-    const badge = statusColors[entry.status] || statusColors.processing;
     const completed = (entry.success || 0) + (entry.failed || 0);
-    const progressText = entry.status === "processing" ? `<p class="text-xs text-blue-600">进度：<span class="font-semibold">${completed}</span> / ${entry.total}</p>` : "";
     const expanded = state.historyExpanded.has(entry.jobId);
     const titleHtml = entry.pageUrl
       ? `<a href="${entry.pageUrl}" target="_blank" rel="noopener noreferrer" class="text-sm font-semibold text-slate-700 hover:text-slate-900">${entry.title}</a>`
@@ -144,18 +161,14 @@ function renderHistory() {
               <p class="text-xs text-slate-500">${entry.serverName || "--"} · ${formatDate(entry.startedAt)}</p>
             </div>
             <div class="flex items-center gap-2">
-              <span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ${badge}">${renderStatus(entry.status)}</span>
               <button type="button" class="btn-text text-xs font-semibold text-red-500 border border-red-200" data-history-delete>删除</button>
             </div>
           </div>
           <div class="grid gap-3 text-xs text-slate-500 sm:grid-cols-2">
             <p>目标路径：<span class="font-medium text-slate-700">${entry.targetPath}</span></p>
-            <p>下载项：<span class="font-medium text-slate-700">${entry.total}</span> · 成功 <span class="font-medium text-slate-800">${entry.success}</span> · 失败 <span class="font-medium text-slate-500">${entry.failed}</span></p>
+            <p>成功：<span class="font-medium text-emerald-600">${entry.success}</span> · 失败：<span class="font-medium text-rose-600">${entry.failed}</span></p>
             <p>规则：<code class="rounded bg-slate-100 px-1.5 py-0.5 text-slate-600">${entry.rule}</code></p>
-            <div class="space-y-1">
-              ${progressText}
-              <p>${entry.message || (entry.status === "processing" ? "正在处理" : "-")}</p>
-            </div>
+            <p>${entry.message || "-"}</p>
           </div>
           <div class="mt-3 border-t border-slate-100 pt-3">
             <button type="button" class="btn-text text-xs font-semibold text-slate-700" data-history-toggle aria-expanded="${expanded}">
@@ -253,12 +266,6 @@ function formatDate(timestamp) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
-function renderStatus(status) {
-  if (status === "success") return "已完成";
-  if (status === "failed") return "失败";
-  return "进行中";
-}
-
 function renderHistoryDetails(entry) {
   const finished = entry.finishedAt ? formatDate(entry.finishedAt) : "尚未完成";
   const errorText = entry.error || "";
@@ -287,6 +294,28 @@ function renderHistoryFiles(files = []) {
       ${files
         .map((file) => {
           const meta = getFileStatusMeta(file.status);
+
+          // Build progress information
+          let progressInfo = "";
+          if (file.status === "downloading" && file.downloadTotal > 0) {
+            const percentage = ((file.downloadSize / file.downloadTotal) * 100).toFixed(1);
+            const downloadText = `${formatSize(file.downloadSize)} / ${formatSize(file.downloadTotal)} (${percentage}%)`;
+            const speedText = file.downloadSpeed > 0 ? formatSpeed(file.downloadSpeed) : "-";
+            progressInfo += `<p>下载进度：${downloadText} · 速度：${speedText}</p>`;
+          } else if (file.status === "uploading" && file.uploadTotal > 0) {
+            const percentage = ((file.uploadSize / file.uploadTotal) * 100).toFixed(1);
+            const uploadText = `${formatSize(file.uploadSize)} / ${formatSize(file.uploadTotal)} (${percentage}%)`;
+            const speedText = file.uploadSpeed > 0 ? formatSpeed(file.uploadSpeed) : "-";
+            progressInfo += `<p>上传进度：${uploadText} · 速度：${speedText}</p>`;
+          } else if (file.status === "success") {
+            if (file.downloadTotal > 0) {
+              progressInfo += `<p>文件大小：${formatSize(file.downloadTotal)}</p>`;
+            }
+            if (file.downloadSpeed > 0) {
+              progressInfo += `<p>平均下载速度：${formatSpeed(file.downloadSpeed)}</p>`;
+            }
+          }
+
           return `
             <li class="rounded-xl border border-slate-200 bg-white/90 p-3 text-xs text-slate-600">
               <div class="flex items-center justify-between gap-3">
@@ -297,8 +326,9 @@ function renderHistoryFiles(files = []) {
                 <span class="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${meta.badge}">${meta.icon}${meta.text}</span>
               </div>
               <div class="mt-2 space-y-1 text-[11px] text-slate-500">
+                ${progressInfo}
                 ${file.remotePath ? `<p>路径：<code class="rounded bg-slate-100/60 px-1 py-0.5 text-slate-600">${file.remotePath}</code></p>` : ""}
-                ${file.finishedAt ? `<p>完成：${formatDate(file.finishedAt)}</p>` : ""}
+                ${file.finishedAt ? `<p>完成时间：${formatDate(file.finishedAt)}</p>` : ""}
                 ${file.error ? `<p class="text-rose-500">错误：${file.error}</p>` : ""}
               </div>
             </li>

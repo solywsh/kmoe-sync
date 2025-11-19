@@ -116,7 +116,13 @@ function sanitizeHistoryFiles(files, title = "下载项") {
       remotePath: typeof file?.remotePath === "string" ? file.remotePath : "",
       error: file?.error || "",
       startedAt: file?.startedAt || null,
-      finishedAt: file?.finishedAt || null
+      finishedAt: file?.finishedAt || null,
+      downloadSize: Number(file?.downloadSize) || 0,
+      downloadTotal: Number(file?.downloadTotal) || 0,
+      uploadSize: Number(file?.uploadSize) || 0,
+      uploadTotal: Number(file?.uploadTotal) || 0,
+      downloadSpeed: Number(file?.downloadSpeed) || 0,
+      uploadSpeed: Number(file?.uploadSpeed) || 0
     };
   });
 }
