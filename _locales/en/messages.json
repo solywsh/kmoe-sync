@@ -1,0 +1,10 @@
+{
+  "extensionName": {
+    "message": "Kmoe Sync",
+    "description": "Extension name"
+  },
+  "extensionDescription": {
+    "message": "Collect manga from kmoe mirror sites and sync to WebDAV.",
+    "description": "Extension description"
+  }
+}
