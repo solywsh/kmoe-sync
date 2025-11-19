@@ -426,6 +426,11 @@ async function requestContentDownload(url, referer, progressCallback) {
 
 function sendProgress(tabId, payload) {
   return new Promise((resolve) => {
-    chrome.tabs.sendMessage(tabId, { type: "KMOE_DOWNLOAD_PROGRESS", payload }, () => resolve());
+    chrome.tabs.sendMessage(tabId, { type: "KMOE_DOWNLOAD_PROGRESS", payload }, () => {
+      if (chrome.runtime.lastError) {
+        console.warn("Failed to send progress:", chrome.runtime.lastError.message);
+      }
+      resolve();
+    });
   });
 }

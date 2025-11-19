@@ -826,6 +826,10 @@
           pageUrl: window.location.href,
           items: preparedItems
         }
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error("Message error:", chrome.runtime.lastError.message);
+        }
       });
     } catch (error) {
       appendLog(error?.message || "扩展通信失败，请刷新页面后重试", "error");
@@ -1009,7 +1013,11 @@
       if (action === "open-panel") {
         toggleModal(true);
       } else if (action === "open-options") {
-        chrome.runtime.sendMessage({ type: "KMOE_OPEN_OPTIONS" });
+        chrome.runtime.sendMessage({ type: "KMOE_OPEN_OPTIONS" }, () => {
+          if (chrome.runtime.lastError) {
+            console.error("Message error:", chrome.runtime.lastError.message);
+          }
+        });
       }
       toggleMenu(false);
     });
@@ -1019,7 +1027,13 @@
       toggleModal(false);
     }
   });
-  elements.openOptionsButton.addEventListener("click", () => chrome.runtime.sendMessage({ type: "KMOE_OPEN_OPTIONS" }));
+  elements.openOptionsButton.addEventListener("click", () => {
+    chrome.runtime.sendMessage({ type: "KMOE_OPEN_OPTIONS" }, () => {
+      if (chrome.runtime.lastError) {
+        console.error("Message error:", chrome.runtime.lastError.message);
+      }
+    });
+  });
   elements.pathInput.addEventListener("blur", handlePathInputChange);
   elements.startButton.addEventListener("click", startDownload);
   document.addEventListener("keydown", (event) => {
