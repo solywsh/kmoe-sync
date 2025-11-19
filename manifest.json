@@ -1,8 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "__MSG_extensionName__",
-  "description": "__MSG_extensionDescription__",
-  "default_locale": "zh_CN",
+  "name": "Kmoe Sync",
+  "description": "在 kmoe 镜像站收集漫画并同步到 WebDAV。",
   "version": "1.0.0",
   "icons": {
     "16": "icons/icon16.png",
