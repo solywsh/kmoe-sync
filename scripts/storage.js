@@ -8,8 +8,8 @@ const SAMPLE_SERVER = {
   baseUrl: "https://example.com/webdav",
   username: "",
   password: "",
-  defaultPath: "/library",
-  paths: [{ id: "demo-root", label: "Library", value: "/library" }]
+  defaultPath: "/",
+  paths: [{ id: "demo-root", label: "默认", value: "/" }]
 };
 
 export const defaultSettings = {

@@ -505,6 +505,21 @@ async function persistServer(form) {
 async function deleteServer(serverId) {
   if (!confirm("确定要删除该服务器？")) return;
   state.settings.webdavServers = state.settings.webdavServers.filter((server) => server.id !== serverId);
+
+  // 清理相关状态
+  if (state.settings.collapsedServers?.[serverId]) {
+    delete state.settings.collapsedServers[serverId];
+  }
+  if (state.settings.serverTestStatus?.[serverId]) {
+    delete state.settings.serverTestStatus[serverId];
+  }
+  if (state.settings.lastSelectedPaths?.[serverId]) {
+    delete state.settings.lastSelectedPaths[serverId];
+  }
+  if (state.settings.lastSelectedServerId === serverId) {
+    state.settings.lastSelectedServerId = state.settings.webdavServers[0]?.id || null;
+  }
+
   await saveSettings(state.settings);
   await bootstrap();
   showFeedback("服务器已删除", "danger");
@@ -513,6 +528,16 @@ async function deleteServer(serverId) {
 async function testServerConnection(form) {
   const server = extractServer(form);
   const status = form.querySelector("[data-status]");
+
+  // 先保存服务器配置
+  const index = state.settings.webdavServers.findIndex((item) => item.id === server.id);
+  if (index >= 0) {
+    state.settings.webdavServers[index] = server;
+  } else {
+    state.settings.webdavServers.push(server);
+  }
+  await saveSettings(state.settings);
+
   status.textContent = "测试中...";
   status.classList.remove("text-emerald-600", "text-rose-600", "text-slate-500");
   status.classList.add("text-slate-500");
