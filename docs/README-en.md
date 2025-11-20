@@ -14,8 +14,19 @@ Kmoe Sync is a Chrome extension that injects a floating downloader on kxx.moe mi
 - **Floating downloader** – open the panel on manga pages, choose line, format, and chapter groups, and monitor quota and logs in real time.
 
 ## Installation
-1. Install dependencies and build styles: `npm install && npm run build:css`.
-2. Open `chrome://extensions/`, enable Developer Mode, choose “Load unpacked”, and select this project folder.
+
+### From Store (Recommended)
+- **Microsoft Edge**: [Install from Edge Add-ons Store](https://microsoftedge.microsoft.com/addons/detail/jalicelpgjimijnmpmejjhmjpnoilkel)
+
+### Manual Installation
+1. Go to [GitHub Releases](https://github.com/solywsh/kmoe-sync/releases) and download the latest version zip file.
+2. Extract the downloaded file to a local directory.
+3. Open `chrome://extensions/` or `edge://extensions/`, enable Developer Mode, choose "Load unpacked", and select the extracted folder.
+4. Verify the icon, permissions, and version on the extension details page.
+
+### From Source (Developers)
+1. Clone the repository and install dependencies: `npm install && npm run build:css`.
+2. Open `chrome://extensions/` or `edge://extensions/`, enable Developer Mode, choose "Load unpacked", and select this project folder.
 3. Verify the icon, permissions, and version on the extension details page.
 
 ## Usage

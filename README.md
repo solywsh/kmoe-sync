@@ -14,8 +14,19 @@ Kmoe Sync 是一个 Chrome 扩展，能在 kxx.moe 及其镜像站注入浮窗�
 - **浮窗下载器**：在漫画详情页右下角唤出控制面板，选择线路、文件格式与章节组别，实时查看额度和日志。
 
 ## 安装步骤
-1. 安装依赖并构建样式：`npm install && npm run build:css`。
-2. 打开 `chrome://extensions/`，启用开发者模式，点击“加载已解压的扩展程序”，选择本项目目录。
+
+### 从商店安装（推荐）
+- **Microsoft Edge**: [从 Edge 外接程序商店安装](https://microsoftedge.microsoft.com/addons/detail/jalicelpgjimijnmpmejjhmjpnoilkel)
+
+### 手动安装
+1. 前往 [GitHub Releases](https://github.com/solywsh/kmoe-sync/releases) 下载最新版本的 zip 压缩包。
+2. 解压下载的文件到本地目录。
+3. 打开 `chrome://extensions/` 或 `edge://extensions/`，启用开发者模式，点击"加载已解压的扩展程序"，选择解压后的目录。
+4. 在扩展详情页确认图标、权限和版本后即可使用。
+
+### 从源码安装（开发者）
+1. 克隆仓库并安装依赖：`npm install && npm run build:css`。
+2. 打开 `chrome://extensions/` 或 `edge://extensions/`，启用开发者模式，点击"加载已解压的扩展程序"，选择本项目目录。
 3. 在扩展详情页确认图标、权限和版本后即可使用。
 
 ## 使用指南
