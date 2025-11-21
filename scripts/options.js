@@ -53,8 +53,15 @@ const refs = {
   importHistory: document.getElementById("importHistory"),
   importServers: document.getElementById("importServers"),
   importRules: document.getElementById("importRules"),
-  importBtn: document.getElementById("importBtn")
+  importBtn: document.getElementById("importBtn"),
+  appVersion: document.getElementById("appVersion")
 };
+
+function renderVersion() {
+  if (!refs.appVersion || !chrome?.runtime?.getManifest) return;
+  const version = chrome.runtime.getManifest()?.version || "";
+  refs.appVersion.textContent = version ? `v${version}` : "v-";
+}
 
 function formatSpeed(bytesPerSecond) {
   if (!bytesPerSecond || bytesPerSecond < 1) return "0 B/s";
@@ -1135,4 +1142,5 @@ if (toggleImport && importBody) {
   });
 }
 
+renderVersion();
 bootstrap();
