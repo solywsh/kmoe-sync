@@ -105,7 +105,7 @@ async function handleDownloadRequest(payload, tabId) {
     total: jobItems.length,
     serverName: server.name,
     targetPath: targetDir,
-    rule: settings.downloadRule,
+    rule: payload.rule || settings.downloadRule,
     line: payload.lineOrigin,
     pageUrl: payload.pageUrl,
     items: jobItems
@@ -162,7 +162,8 @@ async function handleDownloadRequest(payload, tabId) {
         item.label,
         preferredExt
       );
-      const ruleResult = applyRuleTemplate(settings.downloadRule, {
+      const activeRule = payload.rule || settings.downloadRule;
+      const ruleResult = applyRuleTemplate(activeRule, {
         title: payload.bookTitle,
         filename: fileInfo.baseName,
         ext: fileInfo.ext,

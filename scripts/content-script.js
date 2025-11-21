@@ -10,11 +10,17 @@
     setLastSelectedServer,
     setLastSelectedPath,
     setFloatingButtonPosition,
-    normalizePath
+    normalizePath,
+    applyRuleTemplate,
+    defaultSettings
   } = storageModule;
 
+  const initialSettings = await getSettings();
+
   const state = {
-    settings: await getSettings(),
+    settings: initialSettings,
+    defaultRule: initialSettings.downloadRule || defaultSettings.downloadRule,
+    ruleTemplate: initialSettings.downloadRule || defaultSettings.downloadRule,
     selectedServerId: null,
     selectedPath: null,
     selectedLine: "auto",
@@ -138,6 +144,14 @@
               </div>
             </div>
             <input id="kmoe-path-input" class="input mt-3 font-mono text-xs" placeholder="/library/manga" />
+            <div class="mt-3 space-y-2">
+              <div class="flex items-center justify-between gap-3">
+                <label class="text-xs font-semibold text-slate-500">下载规则</label>
+                <button id="kmoe-rule-reset" class="btn-text px-2 py-1 text-[11px] text-slate-600">恢复默认</button>
+              </div>
+              <input id="kmoe-rule-input" class="input font-mono text-xs" placeholder="{title}/{filename}" />
+              <p id="kmoe-rule-preview" class="text-[11px] text-slate-500">当前任务路径预览</p>
+            </div>
           </section>
 
           <section class="rounded-2xl border border-slate-200/80 bg-white/80 p-4">
@@ -209,6 +223,9 @@
     meta: uiRoot.querySelector("#kmoe-meta"),
     quota: uiRoot.querySelector("#kmoe-quota"),
     pathInput: uiRoot.querySelector("#kmoe-path-input"),
+    ruleInput: uiRoot.querySelector("#kmoe-rule-input"),
+    rulePreview: uiRoot.querySelector("#kmoe-rule-preview"),
+    ruleReset: uiRoot.querySelector("#kmoe-rule-reset"),
     groups: uiRoot.querySelector("#kmoe-groups"),
     selectionCount: uiRoot.querySelector("#kmoe-selection-count"),
     statusText: uiRoot.querySelector("#kmoe-status-text"),
@@ -449,6 +466,30 @@
       })),
       String(current ?? available[0]?.value ?? 2)
     );
+  }
+
+  function refreshRuleTemplate() {
+    const template = state.ruleTemplate || state.settings.downloadRule || defaultSettings.downloadRule;
+    state.ruleTemplate = template;
+    state.defaultRule = state.settings.downloadRule || defaultSettings.downloadRule;
+    if (elements.ruleInput) {
+      elements.ruleInput.value = template;
+    }
+    refreshRulePreview();
+  }
+
+  function refreshRulePreview() {
+    if (!elements.rulePreview) return;
+    const template = (elements.ruleInput?.value || state.defaultRule || defaultSettings.downloadRule).trim();
+    const sampleExt = state.fileFormat === 1 ? "mobi" : "epub";
+    const preview = applyRuleTemplate(template, {
+      title: state.manga?.title || "示例漫画",
+      filename: "章节001",
+      ext: sampleExt,
+      date: new Date()
+    });
+    const finalPath = preview.includesExt ? preview.path : `${preview.path}.${sampleExt}`;
+    elements.rulePreview.textContent = `当前任务路径预览（不影响默认规则）：/${finalPath}`;
   }
 
   function updateMangaHeader() {
@@ -762,6 +803,7 @@
     state.fileFormat = Number.isFinite(parsed) ? parsed : FORMAT_OPTIONS[0]?.value || 2;
     updateItemSizesByFormat();
     renderGroups();
+    refreshRulePreview();
   }
 
   function updateItemSizesByFormat() {
@@ -824,6 +866,7 @@
           fileFormat: state.fileFormat,
           downloadOrigin: state.downloadOrigin,
           pageUrl: window.location.href,
+          rule: state.ruleTemplate || state.defaultRule || defaultSettings.downloadRule,
           items: preparedItems
         }
       }, (response) => {
@@ -1035,6 +1078,22 @@
     });
   });
   elements.pathInput.addEventListener("blur", handlePathInputChange);
+  if (elements.ruleInput) {
+    elements.ruleInput.addEventListener("input", () => {
+      state.ruleTemplate = elements.ruleInput.value.trim() || state.defaultRule || defaultSettings.downloadRule;
+      refreshRulePreview();
+    });
+  }
+  if (elements.ruleReset) {
+    elements.ruleReset.addEventListener("click", (event) => {
+      event.preventDefault();
+      state.ruleTemplate = state.defaultRule || defaultSettings.downloadRule;
+      if (elements.ruleInput) {
+        elements.ruleInput.value = state.ruleTemplate;
+      }
+      refreshRulePreview();
+    });
+  }
   elements.startButton.addEventListener("click", startDownload);
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && state.overlayOpen) {
@@ -1043,7 +1102,16 @@
   });
 
   onSettingsChanged((settings) => {
+    const previousDefault = state.defaultRule;
     state.settings = settings;
+    state.defaultRule = settings.downloadRule || defaultSettings.downloadRule;
+    if (!state.ruleTemplate || state.ruleTemplate === previousDefault) {
+      state.ruleTemplate = state.defaultRule;
+      if (elements.ruleInput) {
+        elements.ruleInput.value = state.ruleTemplate;
+      }
+    }
+    refreshRulePreview();
     refreshServerState();
     state.applyFloatingButtonPosition?.();
   });
@@ -1051,6 +1119,7 @@
   refreshServerState();
   refreshLineOptions();
   refreshFormatOptions();
+  refreshRuleTemplate();
   updateMangaHeader();
   renderGroups();
   updateQuotaDisplay();
@@ -1148,6 +1217,7 @@
     updateMangaHeader();
     renderGroups();
     updateQuotaDisplay();
+    refreshRulePreview();
   }
 
   function injectBridgeScript() {
