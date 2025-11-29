@@ -16,6 +16,7 @@ Kmoe Sync is a Chrome extension that injects a floating downloader on kxx.moe mi
 ## Installation
 
 ### From Store (Recommended)
+- **Google Chrome**: [Install from Chrome Web Store](https://chromewebstore.google.com/detail/kmoe-sync/ljcjcpoekafofkbmdkmapjgilgnomlho)
 - **Microsoft Edge**: [Install from Edge Add-ons Store](https://microsoftedge.microsoft.com/addons/detail/jalicelpgjimijnmpmejjhmjpnoilkel)
 
 ### Manual Installation
@@ -35,6 +36,23 @@ Kmoe Sync is a Chrome extension that injects a floating downloader on kxx.moe mi
 3. Select the chapters, pick the line/format/path, then click “Start Download”. The Service Worker fetches and uploads files sequentially while logging progress and history.
 
 ![Downloader](./download.png)
+
+## Sync to E-ink Readers
+If you want to sync manga to an e-ink reader (Android system), follow these steps:
+
+1. **Install a WebDAV server app on your Android device**:
+   - Recommended: [HTTP File Server](https://play.google.com/store/apps/details?id=slowscript.httpfileserver) or other WebDAV server apps.
+
+2. **Configure the WebDAV service**:
+   - Open the app and enable write permissions.
+   - Set up a username and password.
+   - Ensure the device is on the same local network as your computer.
+
+3. **Add the WebDAV service in Kmoe Sync**:
+   - Open the extension options page.
+   - Add a new WebDAV server with the local network address shown on your Android device (e.g., `http://192.168.1.100:8080`).
+   - Enter the username and password configured in step 2.
+   - After a successful connection test, you can download manga directly to your e-ink reader.
 
 ## Development Notes
 - Re-run `npm run build:css` whenever you adjust UI or styles so injected pages receive the latest CSS.

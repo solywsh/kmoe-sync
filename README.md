@@ -16,6 +16,7 @@ Kmoe Sync 是一个 Chrome 扩展，能在 kxx.moe 及其镜像站注入浮窗�
 ## 安装步骤
 
 ### 从商店安装（推荐）
+- **Google Chrome**: [从 Chrome 应用商店安装](https://chromewebstore.google.com/detail/kmoe-sync/ljcjcpoekafofkbmdkmapjgilgnomlho)
 - **Microsoft Edge**: [从 Edge 外接程序商店安装](https://microsoftedge.microsoft.com/addons/detail/jalicelpgjimijnmpmejjhmjpnoilkel)
 
 ### 手动安装
@@ -35,6 +36,23 @@ Kmoe Sync 是一个 Chrome 扩展，能在 kxx.moe 及其镜像站注入浮窗�
 3. 勾选需要的章节，选择线路、文件格式和保存规则，点击“开始下载”；后台 Service Worker 会依序下载并上传，进度会写入历史。
 
 ![下载面板](docs/download.png)
+
+## 同步到水墨屏阅读器
+如果你想将漫画同步到水墨屏阅读器（安卓系统）上阅读，可以按照以下步骤操作：
+
+1. **在安卓设备上安装 WebDAV 服务端应用**：
+   - 推荐使用 [HTTP File Server](https://play.google.com/store/apps/details?id=slowscript.httpfileserver) 或其他 WebDAV Server 端应用。
+
+2. **配置 WebDAV 服务**：
+   - 打开应用，添加写入权限。
+   - 设置登录用户名和密码。
+   - 确保设备与电脑在同一局域网内。
+
+3. **在 Kmoe Sync 中添加 WebDAV 服务**：
+   - 打开扩展设置页。
+   - 添加新的 WebDAV 服务器，填写安卓设备显示的局域网地址（如 `http://192.168.1.100:8080`）。
+   - 输入在步骤 2 中设置的用户名和密码。
+   - 测试连接成功后，即可将漫画直接下载到水墨屏阅读器中。
 
 ## 开发提示
 - 修改 UI 或样式后需重新运行 `npm run build:css`，确保注入页面获得最新样式。
